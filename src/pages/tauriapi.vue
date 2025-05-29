@@ -91,9 +91,10 @@
                         <el-menu-item index="3-12">{{
                             t('injectJq')
                         }}</el-menu-item>
-                        <el-menu-item index="3-13">{{
-                            t('disableCors')
-                        }}</el-menu-item>
+                        <el-menu-item index="3-13">
+                            {{ t('disableCors') }}
+                        </el-menu-item>
+                        <el-menu-item index="3-14">支付测试</el-menu-item>
                     </el-sub-menu>
                     <el-menu-item index="4">
                         <span>{{ t('aboutUs') }}</span>
@@ -515,6 +516,36 @@
                 <div v-else-if="menuIndex === '4'" class="cardContent">
                     <About />
                 </div>
+                <!-- 支付测试 -->
+                <div v-else-if="menuIndex === '3-14'" class="cardContent">
+                    <el-button @click="getPayCode('weixin')">
+                        微信支付
+                    </el-button>
+                    <el-button @click="getPayCode('alipay')">
+                        支付宝支付
+                    </el-button>
+                    <div v-if="qrCodeData" class="qrCodeBox">
+                        <img
+                            :src="qrCodeData"
+                            alt="支付二维码"
+                            class="qrCode"
+                        />
+                        <!-- logo -->
+                        <!-- <img :src="ppIcon" alt="logo" class="qrlogo" /> -->
+                        <!-- wx or alipay -->
+                        <div class="qrlogo">
+                            <span
+                                v-if="payType === 'weixin'"
+                                class="iconfont weixin qrlogo"
+                            >
+                                &#xe64b;
+                            </span>
+                            <span v-else class="iconfont zhifubao qrlogo">
+                                &#xe654;
+                            </span>
+                        </div>
+                    </div>
+                </div>
                 <!-- 待开发 -->
                 <div v-else class="waitContent">
                     <h1 class="cardTitle">{{ t('waitDev') }}</h1>
@@ -527,7 +558,7 @@
 <script lang="ts" setup>
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { oneMessage } from '@/utils/common'
+import { getPaySign, oneMessage } from '@/utils/common'
 import About from '@/pages/about.vue'
 import ppIcon from '@/assets/images/pakeplus.png'
 import { ArrowLeft } from '@element-plus/icons-vue'
@@ -608,6 +639,9 @@ import {
 } from '@tauri-apps/api/webview'
 import { Window } from '@tauri-apps/api/window'
 import { useI18n } from 'vue-i18n'
+import payApi from '@/apis/pay'
+import { fetch } from '@tauri-apps/plugin-http'
+import QRCode from 'qrcode'
 
 const { t } = useI18n()
 const route = useRoute()
@@ -615,7 +649,7 @@ const router = useRouter()
 const textarea = ref('')
 const image = ref()
 const defaultMenu = ref('1-1')
-const menuIndex = ref('1-1')
+const menuIndex = ref('3-14')
 
 const handleMenu = (index: string) => {
     console.log('handleMenu', index)
@@ -627,7 +661,6 @@ const goBack = () => {
 }
 
 // defaultWindowIcon
-
 const defaultWindowIconApi = async () => {
     const icon = await defaultWindowIcon()
     if (!icon) return
@@ -713,6 +746,48 @@ const unlistenEvent = async () => {
 // window:窗口
 const openWindow = async () => {
     console.log('window')
+}
+
+const qrCodeData = ref('')
+const payType = ref('')
+// get pay code
+const getPayCode = async (payMathod: string = 'weixin') => {
+    // 请输入支付金额(单位:元)
+    payType.value = payMathod
+    let money = 10
+    try {
+        money = parseInt(textarea.value)
+        if (isNaN(money)) {
+            oneMessage.error('请输入正确的支付金额')
+            return
+        }
+    } catch (error) {
+        oneMessage.error('请输入正确的支付金额')
+        return
+    }
+    const order: any = {
+        mchid: import.meta.env.VITE_PAY_MCHID,
+        body: '支付测试订单',
+        total_fee: money,
+        out_trade_no: 'payjs_jspay_demo_2323923',
+        auto: 1,
+        hide: 1,
+        type: payMathod === 'weixin' ? null : 'alipay',
+    }
+    order.sign = getPaySign(order)
+    console.log('order----', order)
+    const queryString = Object.keys(order)
+        .map(
+            (key) =>
+                `${encodeURIComponent(key)}=${encodeURIComponent(order[key])}`
+        )
+        .join('&')
+    const payUrl = 'https://payjs.cn/api/cashier?' + queryString
+    console.log('payUrl', payUrl)
+
+    const url = await QRCode.toDataURL(payUrl)
+    console.log('url', url)
+    qrCodeData.value = url
 }
 
 // 页面初始化
@@ -836,6 +911,49 @@ onMounted(() => {
             .el-button {
                 margin: 0;
             }
+        }
+
+        .qrCodeBox {
+            margin-top: 10px;
+            width: 200px;
+            height: 200px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            position: relative;
+
+            .qrlogo {
+                width: 28px;
+                height: 28px;
+                position: absolute;
+                top: 0;
+                left: 0;
+                bottom: 0;
+                right: 0;
+                margin: auto;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+
+            .zhifubao {
+                font-size: 30px;
+                color: #009fe8;
+                position: absolute;
+                background-color: #fff;
+            }
+
+            .weixin {
+                font-size: 30px;
+                color: #3daf34;
+                position: absolute;
+                background-color: #fff;
+            }
+        }
+
+        .qrCode {
+            width: 200px;
+            height: 200px;
         }
     }
 }
